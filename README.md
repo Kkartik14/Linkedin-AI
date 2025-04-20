@@ -62,11 +62,11 @@ Copy .env.example to .env and add your LinkedIn credentials and Groq API key
     ```
     Open http://localhost:8501.
 
-Features
-    - **Create Posts:** Enter keywords (optional) and generate 3 posts optimized for Archit Anand’s audience.
-    - **Submit Feedback:** Provide feedback on posts (tone, CTA, content) to improve future generations.
-    - **Refine Posts:** Regenerate posts incorporating all feedback.
-    - **View Trends:** Visualize engagement by day, hour, and hashtags.
+### Features:
+- **Create Posts:** Enter keywords (optional) and generate 3 posts optimized for Archit Anand’s audience.
+- **Submit Feedback:** Provide feedback on posts (tone, CTA, content) to improve future generations.
+- **Refine Posts:** Regenerate posts incorporating all feedback.
+- **View Trends:** Visualize engagement by day, hour, and hashtags.
 
 # Workflow
 1. **Scrape:** Run scraper.py to collect posts from profiles (data/posts.csv).
