@@ -37,22 +37,22 @@ Copy .env.example to .env and add your LinkedIn credentials and Groq API key
     ```bash
     python scraper.py
     ```
-    **Outputs**: data/posts.csv
-    **Features**: Scrapes posts from specified profiles, Handles cookies, retries, and LinkedIn’s dynamic loading. Saves error pages for debugging 
+    - **Outputs**: data/posts.csv
+    - **Features**: Scrapes posts from specified profiles, Handles cookies, retries, and LinkedIn’s dynamic loading. Saves error pages for debugging 
 
 2. **Analyze Trends:**
     ```bash
     python analyzer.py
     ```
-    **Features:** Analyzes posts for engagement, topics, hashtags, and posting times.
-    **Outputs:**data/trends.csv
+    - **Features:** Analyzes posts for engagement, topics, hashtags, and posting times.
+    - **Outputs:** data/trends.csv
 
 3. **Generate Posts:**
     ```bash
     python generator.py
     ```
-    **Features:** Prompts for keywords (e.g., “AI marketing”) or uses trends.
-    **Outputs:** data/generated_posts.csv (trend-based) or data/generated_posts_user.csv (keyword-based)
+    - **Features:** Prompts for keywords (e.g., “AI marketing”) or uses trends.
+    - **Outputs:** data/generated_posts.csv (trend-based) or data/generated_posts_user.csv (keyword-based)
 
 
 ## Streamlit UI
@@ -62,21 +62,21 @@ Copy .env.example to .env and add your LinkedIn credentials and Groq API key
     ```
     Open http://localhost:8501.
 
-# Features:
-    **Create Posts:** Enter keywords (optional) and generate 3 posts optimized for Archit Anand’s audience.
-    **Submit Feedback:** Provide feedback on posts (tone, CTA, content) to improve future generations.
-    **Refine Posts:** Regenerate posts incorporating all feedback.
-    **View Trends:** Visualize engagement by day, hour, and hashtags.
+# Features
+    - **Create Posts:** Enter keywords (optional) and generate 3 posts optimized for Archit Anand’s audience.
+    - **Submit Feedback:** Provide feedback on posts (tone, CTA, content) to improve future generations.
+    - **Refine Posts:** Regenerate posts incorporating all feedback.
+    - **View Trends:** Visualize engagement by day, hour, and hashtags.
 
 # Workflow
-**Scrape:** Run scraper.py to collect posts from profiles (data/posts.csv).
-**Analyze:** Run analyzer.py to generate trends (data/trends.csv).
-**Generate:** Use generator.py (CLI) or app.py (UI) to create posts, optionally with keywords.
-**Feedback:** Submit feedback via UI to refine posts.
-**Refine:** Regenerate posts with feedback for improved alignment.
-**Schedule:** Review data/scheduled_posts.csv for suggested posting times.
+1. **Scrape:** Run scraper.py to collect posts from profiles (data/posts.csv).
+2. **Analyze:** Run analyzer.py to generate trends (data/trends.csv).
+3. **Generate:** Use generator.py (CLI) or app.py (UI) to create posts, optionally with keywords.
+4. **Feedback:** Submit feedback via UI to refine posts.
+5. **Refine:** Regenerate posts with feedback for improved alignment.
+6. **Schedule:** Review data/scheduled_posts.csv for suggested posting times.
 
-# Results
+# Results: 
 Sample Trends
 Top Hashtags (Archit): #PerformanceMarketing, #AI, #Marketing
 Top Topics: AI, performance marketing, ad optimization
