@@ -2,24 +2,29 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import re
 import os
 import logging
+import pickle
+import random
+from fake_useragent import UserAgent
 from dotenv import load_dotenv
+
 load_dotenv()
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# LinkedIn credentials (store securely in production)
-USERNAME = os.getenv('LinkedIn_USERNAME') 
-PASSWORD = os.getenv('LinkedIn_PASSWORD') 
+USERNAME = os.getenv('LINKEDIN_USERNAME')
+PASSWORD = os.getenv('LINKEDIN_PASSWORD')
+COOKIE_FILE = "data/linkedin_cookies.pkl"
 
-# Profiles to scrape
 PROFILES = [
     "https://www.linkedin.com/in/archit-anand/",
     "https://www.linkedin.com/in/aarongolbin/",
@@ -27,52 +32,132 @@ PROFILES = [
     "https://www.linkedin.com/in/jaspar-carmichael-jack/"
 ]
 
-def initialize_driver():
+def validate_credentials():
+    """Validate that credentials are set."""
+    if not USERNAME or not PASSWORD:
+        logger.error("Missing LinkedIn credentials. Ensure LINKEDIN_USERNAME and LINKEDIN_PASSWORD are set in .env")
+        raise ValueError("LINKEDIN_USERNAME and LINKEDIN_PASSWORD must be set in .env")
+
+def initialize_driver(headless=True):
     """Initialize Selenium WebDriver with Chrome."""
     options = webdriver.ChromeOptions()
-    options.add_argument("--headless")  # Run in headless mode
+    if headless:
+        options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")  
+    options.add_argument("--disable-blink-features=AutomationControlled")  
+    ua = UserAgent()
+    options.add_argument(f"user-agent={ua.random}")
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})") 
     return driver
 
-def login_to_linkedin(driver):
-    """Log in to LinkedIn."""
-    logger.info("Logging in to LinkedIn")
-    driver.get("https://www.linkedin.com/login")
-    time.sleep(3)
-    try:
-        driver.find_element(By.ID, "username").send_keys(USERNAME)
-        driver.find_element(By.ID, "password").send_keys(PASSWORD)
-        driver.find_element(By.XPATH, "//button[@type='submit']").click()
-        time.sleep(5)
-        if "checkpoint" in driver.current_url:
-            logger.warning("Login checkpoint detected. Manual intervention required.")
-            raise Exception("LinkedIn login checkpoint")
-    except Exception as e:
-        logger.error(f"Login failed: {e}")
-        raise
+def save_cookies(driver, path):
+    """Save cookies to a file."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as file:
+        pickle.dump(driver.get_cookies(), file)
+    logger.info(f"Saved cookies to {path}")
 
-def scroll_page(driver, max_scrolls=10, scroll_delay=3):
-    """Scroll to load all posts with enhanced logic."""
-    logger.info("Scrolling page to load posts")
-    scrolls = 0
-    last_height = driver.execute_script("return document.body.scrollHeight")
-    while scrolls < max_scrolls:
+def load_cookies(driver, path):
+    """Load cookies from a file."""
+    if os.path.exists(path):
+        with open(path, 'rb') as file:
+            cookies = pickle.load(file)
+        driver.get("https://www.linkedin.com")  
+        for cookie in cookies:
+            try:
+                driver.add_cookie(cookie)
+            except Exception as e:
+                logger.warning(f"Failed to add cookie: {e}")
+        logger.info(f"Loaded cookies from {path}")
+        return True
+    return False
+
+def login_to_linkedin(driver, retries=3):
+    """Log in to LinkedIn with cookie persistence and retries."""
+    logger.info("Attempting to log in to LinkedIn")
+    for attempt in range(retries):
+        try:
+            driver.get("https://www.linkedin.com/login")
+            time.sleep(random.uniform(2, 4))
+            if load_cookies(driver, COOKIE_FILE):
+                driver.get("https://www.linkedin.com/feed/")
+                time.sleep(random.uniform(2, 4))
+                if "feed" in driver.current_url:
+                    logger.info("Successfully logged in using cookies")
+                    return True
+            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "username")))
+            username_field = driver.find_element(By.ID, "username")
+            password_field = driver.find_element(By.ID, "password")
+            submit_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+
+            username_field.send_keys(USERNAME)
+            password_field.send_keys(PASSWORD)
+            submit_button.click()
+            time.sleep(random.uniform(3, 5))
+
+            if "checkpoint" in driver.current_url or "verify" in driver.current_url:
+                logger.warning("Login checkpoint detected. Please complete manual verification.")
+                input("Press Enter after completing verification...")
+                time.sleep(random.uniform(2, 4))
+
+            if "feed" not in driver.current_url:
+                raise Exception("Login failed: Not redirected to feed")
+
+            save_cookies(driver, COOKIE_FILE)
+            logger.info("Login successful, cookies saved")
+            return True
+
+        except Exception as e:
+            logger.error(f"Login attempt {attempt + 1}/{retries} failed: {e}")
+            if attempt < retries - 1:
+                logger.info("Retrying...")
+                time.sleep(random.uniform(5, 10))
+            else:
+                logger.error("All login attempts failed")
+                return False
+    return False
+
+def scroll_page(driver, scroll_delay=3, max_attempts=50, min_posts=10):
+    """Scroll until all posts are loaded or max attempts reached."""
+    logger.info("Scrolling page to load all posts")
+    attempts = 0
+    last_post_count = 0
+    max_stale_attempts = 3
+    stale_attempts = 0
+
+    while attempts < max_attempts:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(scroll_delay)
-        new_height = driver.execute_script("return document.body.scrollHeight")
-        if new_height == last_height:
-            logger.info("No more posts to load")
-            break
-        last_height = new_height
-        scrolls += 1
-        logger.info(f"Scroll {scrolls}/{max_scrolls}")
-    return scrolls
+        time.sleep(random.uniform(scroll_delay, scroll_delay + 2))
+
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        posts = soup.find_all("div", class_="feed-shared-update-v2")
+        current_post_count = len(posts)
+        logger.info(f"Attempt {attempts + 1}/{max_attempts}: Found {current_post_count} posts")
+
+        if current_post_count == last_post_count:
+            stale_attempts += 1
+            logger.info(f"No new posts loaded (stale attempt {stale_attempts}/{max_stale_attempts})")
+            if stale_attempts >= max_stale_attempts:
+                logger.info("No more posts to load (stale limit reached)")
+                if current_post_count < min_posts:
+                    logger.warning(f"Found only {current_post_count} posts, which is less than min_posts={min_posts}")
+                break
+        else:
+            stale_attempts = 0
+            last_post_count = current_post_count
+
+        attempts += 1
+
+    if attempts >= max_attempts:
+        logger.warning(f"Reached max attempts ({max_attempts}). May not have loaded all posts.")
+    return last_post_count
 
 def clean_number(text):
-    """Clean number strings by removing commas and non-numeric characters."""
+    """Clean number strings."""
     if not text:
         return 0
     try:
@@ -80,59 +165,83 @@ def clean_number(text):
     except ValueError:
         return 0
 
-def extract_posts(driver, profile_url):
-    """Extract posts from a LinkedIn profile."""
+def extract_posts(driver, profile_url, retries=3):
+    """Extract all posts from a LinkedIn profile with retries."""
     logger.info(f"Extracting posts from {profile_url}")
-    posts_url = profile_url + "recent-activity/all/"
-    driver.get(posts_url)
-    time.sleep(3)
-    scroll_page(driver)
+    posts_url = profile_url.rstrip("/") + "/recent-activity/all/"
 
-    soup = BeautifulSoup(driver.page_source, "html.parser")
-    posts = soup.find_all("div", class_="feed-shared-update-v2")
-
-    post_data = []
-    skipped_posts = 0
-    for i, post in enumerate(posts):
+    for attempt in range(retries):
         try:
-            # Extract post text
-            text_elem = post.find("span", class_="break-words")
-            text = text_elem.get_text(strip=True) if text_elem else ""
+            driver.get(posts_url)
+            try:
+                WebDriverWait(driver, 15).until(
+                    EC.presence_of_element_located((By.CLASS_NAME, "feed-shared-update-v2"))
+                )
+            except TimeoutException as e:
+                logger.error(f"Timeout loading posts page: {e}")
+                with open(f"data/error_page_{profile_url.split('/')[-2]}.html", "w") as f:
+                    f.write(driver.page_source)
+                logger.info(f"Saved page source to data/error_page_{profile_url.split('/')[-2]}.html")
+                raise
 
-            # Extract hashtags
-            hashtags = re.findall(r"#\w+", text)
+            post_count = scroll_page(driver)
 
-            # Extract date
-            date_elem = post.find("span", class_="update-components-actor__sub-description")
-            date = date_elem.get_text(strip=True) if date_elem else ""
+            soup = BeautifulSoup(driver.page_source, "html.parser")
+            posts = soup.find_all("div", class_="feed-shared-update-v2")
 
-            # Extract likes, comments, shares
-            likes_elem = post.find("span", class_="social-details-social-counts__reactions-count")
-            likes = clean_number(likes_elem.get_text(strip=True)) if likes_elem else 0
+            post_data = []
+            skipped_posts = 0
+            for i, post in enumerate(posts):
+                try:
+                    text_elem = post.find("span", class_="break-words")
+                    text = text_elem.get_text(strip=True) if text_elem else ""
 
-            comments_elem = post.find("li", class_="social-details-social-counts__comments")
-            comments = clean_number(comments_elem.get_text(strip=True).split()[0]) if comments_elem else 0
+                    if not text or len(text) < 10:
+                        skipped_posts += 1
+                        continue
 
-            shares_elem = post.find("li", class_="social-details-social-counts__shares")
-            shares = clean_number(shares_elem.get_text(strip=True).split()[0]) if shares_elem else 0
+                    hashtags = re.findall(r"#\w+", text)
+                    date_elem = post.find("span", class_="update-components-actor__sub-description")
+                    date = date_elem.get_text(strip=True) if date_elem else ""
 
-            post_data.append({
-                "profile": profile_url,
-                "text": text,
-                "hashtags": hashtags,
-                "date": date,
-                "likes": likes,
-                "comments": comments,
-                "shares": shares
-            })
-            logger.info(f"Extracted post {i+1}: {text[:50]}...")
+                    likes_elem = post.find("span", class_="social-details-social-counts__reactions-count")
+                    likes = clean_number(likes_elem.get_text(strip=True) if likes_elem else "0")
+
+                    comments_elem = post.find("li", class_="social-details-social-counts__comments")
+                    comments = clean_number(comments_elem.get_text(strip=True) if comments_elem else "0")
+
+                    shares_elem = post.find("li", class_="social-details-social-counts__shares")
+                    shares = clean_number(shares_elem.get_text(strip=True) if shares_elem else "0")
+
+                    post_data.append({
+                        "profile": profile_url,
+                        "text": text,
+                        "hashtags": hashtags,
+                        "date": date,
+                        "likes": likes,
+                        "comments": comments,
+                        "shares": shares
+                    })
+                    logger.info(f"Extracted post {i + 1}: {text[:50]}...")
+                except Exception as e:
+                    logger.error(f"Error parsing post {i + 1}: {e}")
+                    skipped_posts += 1
+                    continue
+
+            logger.info(f"Extracted {len(post_data)} posts, skipped {skipped_posts} (Attempt {attempt + 1})")
+            if len(post_data) > 0:
+                return post_data
+            logger.warning(f"No posts extracted on attempt {attempt + 1}. Retrying...")
+            time.sleep(random.uniform(5, 10))
         except Exception as e:
-            logger.error(f"Error parsing post {i+1}: {e}")
-            skipped_posts += 1
+            logger.error(f"Failed to load posts page on attempt {attempt + 1}: {e}")
+            if attempt < retries - 1:
+                logger.info("Retrying...")
+                time.sleep(random.uniform(5, 10))
             continue
 
-    logger.info(f"Extracted {len(post_data)} posts, skipped {skipped_posts}")
-    return post_data
+    logger.error(f"Failed to extract posts from {profile_url} after {retries} attempts")
+    return []
 
 def save_to_csv(data, filename="data/posts.csv"):
     """Save post data to CSV."""
@@ -142,17 +251,22 @@ def save_to_csv(data, filename="data/posts.csv"):
     logger.info(f"Saved {len(data)} posts to {filename}")
 
 def main():
-    driver = initialize_driver()
+    validate_credentials()
+    driver = initialize_driver(headless=True)
+    all_posts = []
     try:
-        login_to_linkedin(driver)
-        all_posts = []
+        if not login_to_linkedin(driver):
+            logger.error("Login failed. Exiting.")
+            return
         for profile in PROFILES:
             posts = extract_posts(driver, profile)
             all_posts.extend(posts)
-            time.sleep(5)  # Increased delay to avoid rate limiting
+            time.sleep(random.uniform(5, 10))
         save_to_csv(all_posts)
     except Exception as e:
         logger.error(f"Scraping failed: {e}")
+        if all_posts:
+            save_to_csv(all_posts, "data/posts_partial.csv")
     finally:
         driver.quit()
 

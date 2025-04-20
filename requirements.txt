@@ -11,3 +11,5 @@ groq
 pandas
 streamlit
 plotly
+webdriver-manager
+fake-useragent

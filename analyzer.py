@@ -11,16 +11,13 @@ import torch
 from sklearn.cluster import KMeans
 import numpy as np
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Download NLTK data
 nltk.download("punkt")
 nltk.download("stopwords")
 stop_words = set(nltk.corpus.stopwords.words("english"))
 
-# Initialize BERT models
 sentiment_analyzer = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
 embedding_model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
@@ -37,11 +34,9 @@ def preprocess_data(df):
     """Clean and preprocess the post data."""
     logger.info("Preprocessing data")
 
-    # Remove duplicates based on profile, text, and date
     df = df.drop_duplicates(subset=["profile", "text", "date"])
     logger.info(f"Removed duplicates, {len(df)} posts remain")
 
-    # Clean hashtags (remove erroneous 'hashtag' suffixes)
     def clean_hashtags(hashtags_str):
         if pd.isna(hashtags_str):
             return []
@@ -52,7 +47,6 @@ def preprocess_data(df):
             return []
     df["hashtags"] = df["hashtags"].apply(clean_hashtags)
 
-    # Parse dates to extract hour and day
     def parse_date(date_str):
         if pd.isna(date_str):
             return None, None
@@ -78,11 +72,9 @@ def preprocess_data(df):
             return None, None
     df[["post_hour", "post_day"]] = df["date"].apply(parse_date).apply(pd.Series)
 
-    # Handle missing engagement values
     for col in ["likes", "comments", "shares"]:
         df[col] = df[col].fillna(0).astype(int)
 
-    # Clean text (remove extra whitespace, normalize)
     df["text"] = df["text"].str.strip().str.replace(r"\s+", " ", regex=True)
 
     return df
@@ -93,7 +85,7 @@ def get_bert_embeddings(texts):
     embeddings = []
     for text in texts:
         if not isinstance(text, str) or not text.strip():
-            embeddings.append(np.zeros(384))  # Default for empty text
+            embeddings.append(np.zeros(384))  
             continue
         inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
         with torch.no_grad():
@@ -112,32 +104,22 @@ def cluster_posts(embeddings, n_clusters=5):
 def extract_features(df):
     """Extract features from posts, including BERT-based clustering and sentiment."""
     logger.info("Extracting features")
-
-    # Post length (characters)
     df["length"] = df["text"].apply(len)
-
-    # Number of hashtags
     df["num_hashtags"] = df["hashtags"].apply(len)
 
-    # BERT-based sentiment (tone)
     def get_sentiment(text):
         if not isinstance(text, str) or not text.strip():
             return 0.0, "neutral"
-        result = sentiment_analyzer(text[:512])[0]  # Truncate to 512 chars
+        result = sentiment_analyzer(text[:512])[0]  
         score = result["score"] if result["label"] == "POSITIVE" else -result["score"]
         tone = "positive" if score > 0.3 else "negative" if score < -0.3 else "neutral"
         return score, tone
     df[["sentiment", "tone"]] = df["text"].apply(get_sentiment).apply(pd.Series)
-
-    # CTAs
     cta_patterns = r"(learn more|comment below|check out|join us|click here|dm me|rsvp|apply now)"
     df["has_cta"] = df["text"].str.contains(cta_patterns, case=False, na=False)
-
-    # BERT-based clustering for topics
-    embeddings = get_bert_embeddings(df["text"].tolist())
+    embeddings = get_bert_embeddings(df["te" \
+    "xt"].tolist())
     df["topic_cluster"] = cluster_posts(embeddings, n_clusters=5)
-
-    # Assign topic labels (based on top keywords in each cluster)
     def get_cluster_keywords(cluster_id):
         cluster_texts = df[df["topic_cluster"] == cluster_id]["text"].str.lower()
         words = [word for text in cluster_texts for word in nltk.word_tokenize(text) if word.isalnum() and word not in stop_words]
@@ -150,11 +132,7 @@ def extract_features(df):
 def analyze_engagement(df):
     """Analyze engagement metrics and trends."""
     logger.info("Analyzing engagement")
-
-    # Total engagement
     df["total_engagement"] = df["likes"] + df["comments"] + df["shares"]
-
-    # Trends
     trends = {
         "avg_engagement_by_hour": df.groupby("post_hour")["total_engagement"].mean().round(2).to_dict(),
         "avg_engagement_by_day": df.groupby("post_day")["total_engagement"].mean().round(2).to_dict(),
@@ -182,22 +160,13 @@ def save_outputs(df, trends, posts_filename="data/posts_analyzed.csv", trends_fi
     logger.info(f"Saved trends to {trends_filename}")
 
 def main():
-    # Load and preprocess
     df = load_posts()
     df = preprocess_data(df)
-
-    # Extract features
     df = extract_features(df)
-
-    # Analyze engagement
     trends, df = analyze_engagement(df)
-
-    # Print key findings
     logger.info("Key Trends:")
     for metric, value in trends.items():
         logger.info(f"{metric}: {value}")
-
-    # Save results
     save_outputs(df, trends)
 
 if __name__ == "__main__":
