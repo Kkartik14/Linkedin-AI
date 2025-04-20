@@ -62,7 +62,7 @@ Copy .env.example to .env and add your LinkedIn credentials and Groq API key
     ```
     Open http://localhost:8501.
 
-# Features
+Features
     - **Create Posts:** Enter keywords (optional) and generate 3 posts optimized for Archit Anand’s audience.
     - **Submit Feedback:** Provide feedback on posts (tone, CTA, content) to improve future generations.
     - **Refine Posts:** Regenerate posts incorporating all feedback.
@@ -76,7 +76,7 @@ Copy .env.example to .env and add your LinkedIn credentials and Groq API key
 5. **Refine:** Regenerate posts with feedback for improved alignment.
 6. **Schedule:** Review data/scheduled_posts.csv for suggested posting times.
 
-# Results: 
+# Results 
 Sample Trends
 Top Hashtags (Archit): #PerformanceMarketing, #AI, #Marketing
 Top Topics: AI, performance marketing, ad optimization
