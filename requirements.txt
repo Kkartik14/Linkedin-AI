@@ -1,0 +1,13 @@
+selenium 
+beautifulsoup4
+pandas 
+python_dotenv
+nltk 
+textblob
+transformers 
+torch 
+scikit-learn
+groq 
+pandas
+streamlit
+plotly
