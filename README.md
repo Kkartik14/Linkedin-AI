@@ -57,10 +57,8 @@ Copy .env.example to .env and add your LinkedIn credentials and Groq API key
 
 ## Streamlit UI
 ### Run App:
-    ```bash
     streamlit run app.py
-    ```
-    Open http://localhost:8501.
+Open http://localhost:8501.
 
 ### Features:
 - **Create Posts:** Enter keywords (optional) and generate 3 posts optimized for Archit Anand’s audience.
