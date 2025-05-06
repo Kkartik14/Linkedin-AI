@@ -1,0 +1,11 @@
+metric,value
+avg_engagement_by_hour,{18.0: 203.64}
+avg_engagement_by_day,"{'Friday': 139.0, 'Monday': 219.0, 'Saturday': 7.0, 'Sunday': 199.6, 'Thursday': 15.0, 'Tuesday': 418.6, 'Wednesday': 181.75}"
+avg_engagement_by_tone,"{'negative': 93.49, 'positive': 97.58}"
+avg_engagement_by_has_cta,"{False: 91.48, True: 115.97}"
+avg_engagement_by_length,"{'short': 11.08, 'medium': 31.81, 'long': 139.13, 'very long': 203.38}"
+top_hashtags,"{'#Innovation': 18, '#VentureCapital': 17, '#AI': 15, '#VC': 15, '#LvlUpVentures': 14}"
+avg_engagement_by_topic,"{'ai, team, us, startups, one': 155.38, 'great, insight': 0.0, 'team, excited, join, summer, apply': 12.22, 'und, die, der, zu, mit': 10.67, 'us, join, excited, new, team': 23.34}"
+avg_engagement_by_profile,"{'https://www.linkedin.com/in/aarongolbin/': 76.68, 'https://www.linkedin.com/in/archit-anand/': 22.7, 'https://www.linkedin.com/in/jaspar-carmichael-jack/': 291.64, 'https://www.linkedin.com/in/robertschöne/': 45.87}"
+archit_top_hashtags,"{'#startuphiring': 5, '#MarketingStrategy': 5, '#philippines': 4, '#PerformanceMarketing': 4, '#AI': 4}"
+archit_top_topics,"{'ai, team, us, startups, one': 24.06, 'great, insight': 0.0, 'und, die, der, zu, mit': 0.0, 'us, join, excited, new, team': 19.78}"
